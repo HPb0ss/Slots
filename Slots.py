@@ -1,151 +1,171 @@
+import tkinter as tk
+from tkinter import messagebox
 import random
 
+ROWS = 3
+COLS = 3
+symbol_count = {"A": 1, "B": 3, "C": 6, "D": 10}
+symbol_values = {"A": 15, "B": 6, "C": 4, "D": 2}
 MAX_LINES = 3
 MAX_BET = 100
 MIN_BET = 1
 
-ROWS = 3
-COLS = 3
-
-symbol_count = {"A": 1, "B": 3, "C": 6, "D": 10}
-symbol_values = {"A" : 15, "B" : 6, "C" : 4, "D" : 2}
-
 all_symbols = []
+for symbol, count in symbol_count.items():
+    all_symbols.extend([symbol] * count)
 
-def check_winnings(columns, lines, bet, values) :
-  winnings = 0
-  winning_lines = []
-  symbols_on_line = []
-  for line in range(lines):
-    symbols_on_line = [column[line] for column in columns]
-    first = symbols_on_line[0]
-    second = symbols_on_line[1]
-    third = symbols_on_line[2]
-    if first == second == third :
-      win_amount = values[first] * bet
-      winnings += win_amount
-      winning_lines.append((line + 1, f"3x {first}", win_amount))
-    elif first == second or second == third or first == third:
-      if first == second or first == third :
-        win_amount = int(values[first] * 0.3 * bet)
-        winnings += win_amount
-        winning_lines.append((line + 1, f"2x {first}", win_amount))
-      else :
-        win_amount = int(values[second] * 0.3 * bet)
-        winnings += win_amount
-        winning_lines.append((line + 1, f"2x {second}", win_amount))
+def get_slot_machine_spin(rows, cols):
+    columns = []
+    for _ in range(cols):
+        column = []
+        # Bias symbol frequency: 'A' is rarest
+        value = random.choices(
+            population=list(symbol_count.keys()),
+            weights=[0.05, 0.2, 0.35, 0.4],  # A (rarest) → D (common)
+            k=rows
+        )
+        column.extend(value)
+        columns.append(column)
 
-  return winnings, winning_lines
+    # Now rig the rows based on chance
+    for row in range(rows):
+        rng = random.random()
+        if rng < 0.70:
+            # 70%: force mismatch → lose
+            forced_mismatch = random.sample(list(symbol_count.keys()), 3)
+            for col in range(cols):
+                columns[col][row] = forced_mismatch[col]
+        elif rng < 0.90:
+            # 20%: allow a 2-symbol match → small win
+            match_symbol = random.choices(list(symbol_count.keys()), weights=[0.05, 0.2, 0.35, 0.4])[0]
+            match_positions = random.sample([0, 1, 2], 2)
+            for i, col in enumerate(columns):
+                if i in match_positions:
+                    col[row] = match_symbol
+                else:
+                    # different symbol
+                    col[row] = random.choice([s for s in symbol_count if s != match_symbol])
+        else:
+            # 10%: allow full match → big win
+            match_symbol = random.choices(list(symbol_count.keys()), weights=[0.1, 0.2, 0.3, 0.4])[0]
+            for col in columns:
+                col[row] = match_symbol
 
-def create_all_symbols(symbols) :
-  for symbol, symbol_count in symbols.items() :
-    for _ in range(symbol_count) :
-      all_symbols.append(symbol)
+    return columns
 
-def get_slot_machine_spin(rows, cols) :   
-  columns = []
-  for _ in range(cols) :
-    column = []
-    current_symbols = all_symbols[:]
-    for _ in range(rows) :
-      value = random.choice(current_symbols)
-      current_symbols.remove(value)
-      column.append(value)
-    columns.append(column)
 
-  return columns
+def check_winnings(columns, lines, bet):
+    winnings = 0
+    winning_lines = []
+    for line in range(lines):
+        row = [column[line] for column in columns]
+        if row[0] == row[1] == row[2]:
+            win_amount = symbol_values[row[0]] * bet
+            winnings += win_amount
+            winning_lines.append((line + 1, f"3x {row[0]}", win_amount))
+        elif row[0] == row[1] or row[1] == row[2] or row[0] == row[2]:
+            match = row[0] if row[0] == row[1] or row[0] == row[2] else row[1]
+            win_amount = int(symbol_values[match] * 0.3 * bet)
+            winnings += win_amount
+            winning_lines.append((line + 1, f"2x {match}", win_amount))
+    return winnings, winning_lines
 
-def print_slot_machine(columns):
-  for row in range(len(columns[0])) :
-    for i, column in enumerate(columns) :
-      if i != len(columns) - 1 :
-        print(column[row], end=" | ")
-      else :
-        print(column[row])
+class SlotMachineApp:
+    
+    def __init__(self, root):
+        self.root = root
+        self.root.title("🎰 Slot Machine Game")
+        self.bet = 10
+        self.lines = 3
+        self.setup_investment_ui()
 
-def deposit() :
-  while True :
-    amount = input("What would you like to deposit? ₹")
-    if amount.isdigit() :
-      amount = int(amount)
-      if amount > 0 :
-        break
-      else :
-        print("Amount must be greater than 0.")
-    else :
-      print("Please enter a number.")
+    def setup_investment_ui(self):
+      self.investment_frame = tk.Frame(self.root)
+      self.investment_frame.pack(pady=20)
 
-  return amount
+      tk.Label(self.investment_frame, text="Enter your investment (₹):", font=("Arial", 14)).pack(pady=5)
+      self.investment_entry = tk.Entry(self.investment_frame, font=("Arial", 14))
+      self.investment_entry.pack(pady=5)
+      tk.Button(self.investment_frame, text="Start Game", font=("Arial", 14), bg="green", fg="white",
+                command=self.start_game).pack(pady=10)
 
-def get_no_of_lines() :
-  while True :
-    lines = input("Enter the number of lines to bet on (1-" + str(MAX_LINES) + ")? ")
-    if lines.isdigit() :
-      lines = int(lines)
-      if 1 <= lines <= MAX_LINES :
-        break
-      else :
-        print("Enter a valid number of lines.")
-    else :
-      print("Please enter a number.")
 
-  return lines
+    def setup_ui(self):
+        self.balance_label = tk.Label(self.root, text=f"Balance: ₹{self.balance}", font=("Arial", 16), fg="green")
+        self.balance_label.pack(pady=10)
 
-def get_bet() :
-  while True :
-    bet = input("What would you like to bet on each line? ₹")
-    if bet.isdigit() :
-      bet = int(bet)
-      if MIN_BET <= bet <= MAX_BET :
-        break
-      else :
-        print(f"Amount must be between ₹{MIN_BET} - ₹{MAX_BET}")
-    else :
-      print("Please enter a number.")
+        self.slots_frame = tk.Frame(self.root)
+        self.slots_frame.pack()
 
-  return bet
+        self.slot_labels = [[tk.Label(self.slots_frame, text="", width=4, height=2, font=("Arial", 24), borderwidth=2, relief="ridge")
+                            for _ in range(COLS)] for _ in range(ROWS)]
+        for r in range(ROWS):
+            for c in range(COLS):
+                self.slot_labels[r][c].grid(row=r, column=c, padx=5, pady=5)
 
-def spin(balance) :
-  lines = get_no_of_lines()
-  while True :
-    bet = get_bet()
-    total_bet = bet * lines
+        settings_frame = tk.Frame(self.root)
+        settings_frame.pack(pady=10)
 
-    if total_bet > balance :
-      print(f"You do not have enough to bet that amount, your current balance is ₹{balance}")    
-    else :
-      break
+        tk.Label(settings_frame, text="Bet/Line ₹:").grid(row=0, column=0)
+        self.bet_entry = tk.Entry(settings_frame, width=5)
+        self.bet_entry.insert(0, str(self.bet))
+        self.bet_entry.grid(row=0, column=1)
 
-  print(f"You are betting {bet} on {lines} lines, Total bet is equal to: ₹{total_bet}")
-  
-  slots = get_slot_machine_spin(lines, COLS)
-  print_slot_machine(slots)
+        tk.Label(settings_frame, text="Lines:").grid(row=0, column=2)
+        self.lines_entry = tk.Entry(settings_frame, width=5)
+        self.lines_entry.insert(0, str(self.lines))
+        self.lines_entry.grid(row=0, column=3)
 
-  winnings, winning_lines = check_winnings(slots, lines, bet, symbol_values)
-  if winning_lines :
-    print(f"You won on lines:")
-    for line, match, amount in winning_lines :
-      print(f"Line {line}: {match} → ₹{amount}")
-  else :
-    print("No winning lines this time.")
-  print(f"Total winnings this time: ₹{winnings}.")
-  
-  with open("balance.txt", 'a') as file :
-    file.write(f"{winnings - total_bet}\n")
+        self.spin_button = tk.Button(self.root, text="🎲 Spin", font=("Arial", 14), bg="orange", command=self.spin)
+        self.spin_button.pack(pady=10)
 
-  return winnings - total_bet
+        self.result_label = tk.Label(self.root, text="", font=("Arial", 14))
+        self.result_label.pack()
 
-def main() :
-  balance = deposit()
-  create_all_symbols(symbol_count)
-  while True :
-    print(f"Current balance is ₹{balance}")
-    ans = input("Press enter to play (\'q\' to quit)")
-    if ans == 'q' :
-      break
-    balance += spin(balance)
-  print(f"You left with ₹{balance}")
-  
-  
+    def spin(self):
+        try:
+            self.bet = int(self.bet_entry.get())
+            self.lines = int(self.lines_entry.get())
+            total_bet = self.bet * self.lines
 
-main()
+            if not (MIN_BET <= self.bet <= MAX_BET):
+                raise ValueError(f"Bet must be ₹{MIN_BET}-{MAX_BET}")
+            if not (1 <= self.lines <= MAX_LINES):
+                raise ValueError(f"Lines must be 1-{MAX_LINES}")
+            if total_bet > self.balance:
+                raise ValueError("Insufficient balance")
+
+        except ValueError as e:
+            messagebox.showerror("Invalid input", str(e))
+            return
+
+        columns = get_slot_machine_spin(ROWS, COLS)
+        for r in range(ROWS):
+            for c in range(COLS):
+                self.slot_labels[r][c].config(text=columns[c][r])
+
+        winnings, winning_lines = check_winnings(columns, self.lines, self.bet)
+        self.balance += (winnings - total_bet)
+        self.balance_label.config(text=f"Balance: ₹{self.balance}")
+
+        if winning_lines:
+            lines_text = "\n".join([f"Line {line}: {match} → ₹{amount}" for line, match, amount in winning_lines])
+            self.result_label.config(text=f"You won:\n{lines_text}\nTotal: ₹{winnings}", fg="blue")
+        else:
+            self.result_label.config(text="No winning lines this time.", fg="red")
+
+    def start_game(self):
+      try:
+          self.balance = int(self.investment_entry.get())
+          if self.balance <= 0:
+              raise ValueError
+      except ValueError:
+          messagebox.showerror("Invalid input", "Please enter a valid positive number.")
+          return
+
+      self.investment_frame.destroy()
+      self.setup_ui()
+
+root = tk.Tk()
+app = SlotMachineApp(root)
+root.mainloop()
