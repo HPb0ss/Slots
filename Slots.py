@@ -7,22 +7,34 @@ MIN_BET = 1
 ROWS = 3
 COLS = 3
 
-symbol_count = {"A": 2, "B": 4, "C": 6, "D": 8}
-symbol_values = {"A" : 5, "B" : 4, "C" : 3, "D" : 2}
+symbol_count = {"A": 1, "B": 3, "C": 6, "D": 10}
+symbol_values = {"A" : 15, "B" : 6, "C" : 4, "D" : 2}
 
 all_symbols = []
 
 def check_winnings(columns, lines, bet, values) :
   winnings = 0
   winning_lines = []
-  for line in range(lines) :
-    symbol = columns[0][line]
-    for column in columns :
-      if symbol != column[line] :
-        break
-    else :
-      winnings += values[symbol] * bet
-      winning_lines.append(line+1)
+  symbols_on_line = []
+  for line in range(lines):
+    symbols_on_line = [column[line] for column in columns]
+    first = symbols_on_line[0]
+    second = symbols_on_line[1]
+    third = symbols_on_line[2]
+    if first == second == third :
+      win_amount = values[first] * bet
+      winnings += win_amount
+      winning_lines.append((line + 1, f"3x {first}", win_amount))
+    elif first == second or second == third or first == third:
+      if first == second or first == third :
+        win_amount = int(values[first] * 0.3 * bet)
+        winnings += win_amount
+        winning_lines.append((line + 1, f"2x {first}", win_amount))
+      else :
+        win_amount = int(values[second] * 0.3 * bet)
+        winnings += win_amount
+        winning_lines.append((line + 1, f"2x {second}", win_amount))
+
   return winnings, winning_lines
 
 def create_all_symbols(symbols) :
@@ -38,7 +50,6 @@ def get_slot_machine_spin(rows, cols) :
     for _ in range(rows) :
       value = random.choice(current_symbols)
       current_symbols.remove(value)
-
       column.append(value)
     columns.append(column)
 
@@ -109,11 +120,19 @@ def spin(balance) :
   
   slots = get_slot_machine_spin(lines, COLS)
   print_slot_machine(slots)
+
   winnings, winning_lines = check_winnings(slots, lines, bet, symbol_values)
-  print(f"You won on lines:", *winning_lines)
-  print(f"You won ₹{winnings}.")
+  if winning_lines :
+    print(f"You won on lines:")
+    for line, match, amount in winning_lines :
+      print(f"Line {line}: {match} → ₹{amount}")
+  else :
+    print("No winning lines this time.")
+  print(f"Total winnings this time: ₹{winnings}.")
+  
   with open("balance.txt", 'a') as file :
     file.write(f"{winnings - total_bet}\n")
+
   return winnings - total_bet
 
 def main() :
@@ -125,7 +144,6 @@ def main() :
     if ans == 'q' :
       break
     balance += spin(balance)
-
   print(f"You left with ₹{balance}")
   
   
