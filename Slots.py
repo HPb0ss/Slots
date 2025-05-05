@@ -10,6 +10,19 @@ MAX_LINES = 3
 MAX_BET = 100
 MIN_BET = 1
 
+BALANCE_FILE = "balance.txt"
+
+def save_balance(balance):
+    with open(BALANCE_FILE, "w") as file:
+        file.write(str(balance))
+
+def load_balance():
+    try:
+        with open(BALANCE_FILE, "r") as file:
+            return int(file.read())
+    except:
+        return None 
+    
 all_symbols = []
 for symbol, count in symbol_count.items():
     all_symbols.extend([symbol] * count)
@@ -27,26 +40,22 @@ def get_slot_machine_spin(rows, cols):
         column.extend(value)
         columns.append(column)
 
-    # Now rig the rows based on chance
+
     for row in range(rows):
         rng = random.random()
         if rng < 0.70:
-            # 70%: force mismatch → lose
             forced_mismatch = random.sample(list(symbol_count.keys()), 3)
             for col in range(cols):
                 columns[col][row] = forced_mismatch[col]
         elif rng < 0.90:
-            # 20%: allow a 2-symbol match → small win
             match_symbol = random.choices(list(symbol_count.keys()), weights=[0.05, 0.2, 0.35, 0.4])[0]
             match_positions = random.sample([0, 1, 2], 2)
             for i, col in enumerate(columns):
                 if i in match_positions:
                     col[row] = match_symbol
                 else:
-                    # different symbol
                     col[row] = random.choice([s for s in symbol_count if s != match_symbol])
         else:
-            # 10%: allow full match → big win
             match_symbol = random.choices(list(symbol_count.keys()), weights=[0.1, 0.2, 0.3, 0.4])[0]
             for col in columns:
                 col[row] = match_symbol
@@ -153,18 +162,28 @@ class SlotMachineApp:
             self.result_label.config(text=f"You won:\n{lines_text}\nTotal: ₹{winnings}", fg="blue")
         else:
             self.result_label.config(text="No winning lines this time.", fg="red")
+        save_balance(self.balance)
 
     def start_game(self):
-      try:
-          self.balance = int(self.investment_entry.get())
-          if self.balance <= 0:
-              raise ValueError
-      except ValueError:
-          messagebox.showerror("Invalid input", "Please enter a valid positive number.")
-          return
+        try:
+            balance_input = self.investment_entry.get()
+            if balance_input == "":
+                stored_balance = load_balance()
+                if stored_balance is not None:
+                    self.balance = stored_balance
+                else:
+                    raise ValueError("No previous balance found.")
+            else:
+                self.balance = int(balance_input)
+                if self.balance <= 0:
+                    raise ValueError
+        except ValueError:
+            messagebox.showerror("Invalid input", "Enter a positive number or leave blank to resume saved balance.")
+            return
 
-      self.investment_frame.destroy()
-      self.setup_ui()
+        save_balance(self.balance)
+        self.investment_frame.destroy()
+        self.setup_ui()
 
 root = tk.Tk()
 app = SlotMachineApp(root)
